@@ -90,9 +90,18 @@ class SlurmExecutableTask(luigi.Task, SlurmMixin):
             self.job_name = self.task_family
 
     def _fetch_task_failures(self, exception):
-        with open(self.errfile, 'r') as err, open(self.outfile, 'r') as out:
-            ret ="\nSLURM err:" + err.read() 
-            ret +="\nSLURM out:" + out.read()
+        ret = ''
+        try:
+            with open(self.errfile, 'r') as err:
+                ret +="\nSLURM err:" + err.read() 
+        except FileNotFoundError:
+            ret +="\nSLURM err: None"
+        try: 
+            with open(self.outfile, 'r') as out:
+                ret +="\nSLURM out:" + out.read()
+        except FileNotFoundError:
+            ret +="\nSLURM out: None"
+        
         return ret
         
     def run(self):
@@ -111,12 +120,10 @@ class SlurmExecutableTask(luigi.Task, SlurmMixin):
             
             submit_cmd = self._srun() + self.launcher 
             logger.debug("SLURM: " + submit_cmd )
-            try:
-                output = subprocess.check_output(submit_cmd, shell=True, stderr=subprocess.PIPE)
-            except subprocess.CalledProcessError as e:
-                self.on_failure = self._fetch_task_failures
-                raise e
-                
+            
+            output = subprocess.check_output(submit_cmd, shell=True, stderr=subprocess.PIPE)
+            
+            self.on_failure = self._fetch_task_failures
             logger.debug(self._fetch_task_failures(None))
             
             if (self.tmp_dir and os.path.exists(self.tmp_dir)):
