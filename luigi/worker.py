@@ -93,6 +93,8 @@ def _get_retry_policy_dict(task):
 class TaskException(Exception):
     pass
 
+class IncompleteException(Exception):
+    pass
 
 GetWorkResponse = collections.namedtuple('GetWorkResponse', (
     'task_id',
@@ -185,7 +187,7 @@ class TaskProcess(multiprocessing.Process):
                 status = DONE
             else:
                 status = FAILED
-                expl = "Task process ended but complete() was not true, were all promised outputs created?"
+                raise IncompleteException("Task process ended but complete() was not true, were all promised outputs created?")
                 
             if new_deps:
                 logger.info(

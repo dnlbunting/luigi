@@ -117,13 +117,13 @@ class SlurmExecutableTask(luigi.Task, SlurmMixin):
         else:
             self.outfile = os.path.join(self.tmp_dir, 'job.out')
             self.errfile = os.path.join(self.tmp_dir, 'job.err')
+            self.on_failure = self._fetch_task_failures
             
             submit_cmd = self._srun() + self.launcher 
             logger.debug("SLURM: " + submit_cmd )
             
             output = subprocess.check_output(submit_cmd, shell=True, stderr=subprocess.PIPE)
             
-            self.on_failure = self._fetch_task_failures
             logger.debug(self._fetch_task_failures(None))
             
             if (self.tmp_dir and os.path.exists(self.tmp_dir)):
