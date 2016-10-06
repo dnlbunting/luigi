@@ -42,13 +42,15 @@ class SlurmMixin(object):
         os.makedirs(self.tmp_dir)
     
     def _srun(self):
-        return ' '.join(['srun', '-N',   '1',
-                                 '-n',   str(self.n_cpu),
-                                 '--mem', str(self.mem),
-                                 '-p',   self.partition,
-                                 '-J',   self.job_name,
-                                 '-o',   self.outfile,
-                                 '-e',   self.errfile,
+        return ' '.join(["salloc", 
+                         '-N',   '1',
+                          '-n',   str(self.n_cpu),
+                          '--mem', str(self.mem),
+                          '-p',   self.partition,
+                          '-J',   self.job_name,
+                          'srun',
+                          '-o',   self.outfile,
+                          '-e',   self.errfile,
                       ' '])
     
 
@@ -91,7 +93,6 @@ class SlurmExecutableTask(luigi.Task, SlurmMixin):
         with open(self.errfile, 'r') as err, open(self.outfile, 'r') as out:
             ret ="\nSLURM err:" + err.read() 
             ret +="\nSLURM out:" + out.read()
-        
         return ret
         
     def run(self):
@@ -112,12 +113,11 @@ class SlurmExecutableTask(luigi.Task, SlurmMixin):
             logger.debug("SLURM: " + submit_cmd )
             try:
                 output = subprocess.check_output(submit_cmd, shell=True, stderr=subprocess.PIPE)
-                
             except subprocess.CalledProcessError as e:
                 self.on_failure = self._fetch_task_failures
                 raise e
                 
-            logger.debug("Submitted job to slurm with response:\n" + output.decode())
+            logger.debug(self._fetch_task_failures(None))
             
             if (self.tmp_dir and os.path.exists(self.tmp_dir)):
                 logger.info('Removing temporary directory %s' % self.tmp_dir)
