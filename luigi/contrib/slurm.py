@@ -49,6 +49,8 @@ class SlurmMixin(object):
                           '-p',   self.partition,
                           '-J',   self.job_name,
                           'srun',
+                          '-n', '1',
+                          '-c', str(self.n_cpu),
                           '-o',   self.outfile,
                           '-e',   self.errfile,
                       ' '])
