@@ -103,17 +103,14 @@ class LocalFileSystem(FileSystem):
 class LocalTarget(FileSystemTarget):
     fs = LocalFileSystem()
 
-    def __init__(self, path=None, format=None, is_tmp=False):
+    def __init__(self, path, format=None, is_tmp=False):
         if format is None:
             format = get_default_format()
-
-        if not path:
-            if not is_tmp:
-                raise Exception('path or is_tmp must be set')
-            path = os.path.join(tempfile.gettempdir(), 'luigi-tmp-%09d' % random.randint(0, 999999999))
+            
+        if is_tmp:
+           raise Exception("is_tmp functionality is now contained in TemporaryFile")
         super(LocalTarget, self).__init__(path)
         self.format = format
-        self.is_tmp = is_tmp
         self.makedirs()
 
     def makedirs(self):
@@ -158,11 +155,19 @@ class LocalTarget(FileSystemTarget):
         warnings.warn("Use LocalTarget.path to reference filename", DeprecationWarning, stacklevel=2)
         return self.path
 
+
+class TemporaryFile(LocalTarget):
+    '''Anonymous temporary file that is accessible from within a single Task. After the Task ends the file is deleted.'''
+    def __init__(self):
+        path = os.path.join(tempfile.gettempdir(), 'luigi-tmp-%09d' % random.randint(0, 999999999))
+        self.path = path
+        super().__init__(path)
+        
     def __del__(self):
-        if self.is_tmp and self.exists():
+        if self.exists():
             self.remove()
-
-
+            
+            
 class File(LocalTarget):
     def __init__(self, *args, **kwargs):
         warnings.warn("File has been renamed LocalTarget", DeprecationWarning, stacklevel=2)

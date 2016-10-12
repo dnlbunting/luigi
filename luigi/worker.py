@@ -60,6 +60,7 @@ from luigi.task import Task, flatten, getpaths, Config
 from luigi.task_register import TaskClassException
 from luigi.task_status import RUNNING
 from luigi.parameter import FloatParameter, IntParameter, BoolParameter
+from luigi.file import TemporaryFile
 
 try:
     import simplejson as json
@@ -211,6 +212,10 @@ class TaskProcess(multiprocessing.Process):
             expl = raw_error_message
 
         finally:
+            # Clear temporary files
+            for attr in dir(self.task):
+                if isinstance(getattr(self.task, attr), TemporaryFile):
+                    getattr(self.task, attr).__del__()
             self.result_queue.put(
                 (self.task.task_id, status, expl, missing, new_deps))
 
