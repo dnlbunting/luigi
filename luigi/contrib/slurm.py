@@ -6,6 +6,7 @@ import sys
 import logging
 import random
 import traceback
+import tempfile
 
 import luigi
 
@@ -15,10 +16,9 @@ logger.propagate = 0
 class SlurmMixin(object):
     '''Mixin to support running Task on a SLURM cluster '''
     
-    n_cpu = luigi.IntParameter(default=2, significant=False)
+    n_cpu = luigi.IntParameter(default=1, significant=False)
     mem = luigi.IntParameter(default=1000, significant=False)
     partition = luigi.Parameter(default='tgac-medium', significant=False)
-    shared_tmp_dir = luigi.Parameter(default='/tgac/scratch/', significant=False)
     job_name_format = luigi.Parameter(
         significant=False, default=None, description="A string that can be "
         "formatted with class variables to name the job with qsub.")
@@ -28,11 +28,11 @@ class SlurmMixin(object):
     run_locally = luigi.BoolParameter(
         significant=False,
         description="run locally instead of on the cluster")
-    
+    rm_tmp = luigi.BoolParameter(default=False, significant=False)
 
     def _init_local(self):
         # Set up temp folder in shared directory (trim to max filename length)
-        base_tmp_dir = self.shared_tmp_dir
+        base_tmp_dir = tempfile.gettempdir()
         random_id = '%016x' % random.getrandbits(64)
         folder_name = self.task_id + '-' + random_id
         self.tmp_dir = os.path.join(base_tmp_dir, folder_name)
@@ -128,7 +128,7 @@ class SlurmExecutableTask(luigi.Task, SlurmMixin):
             
             logger.debug(self._fetch_task_failures(None))
             
-            if (self.tmp_dir and os.path.exists(self.tmp_dir)):
+            if (self.tmp_dir and os.path.exists(self.tmp_dir) and self.rm_tmp):
                 logger.info('Removing temporary directory %s' % self.tmp_dir)
                 subprocess.call(["rm", "-rf", self.tmp_dir])
                 
