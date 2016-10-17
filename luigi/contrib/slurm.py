@@ -11,7 +11,6 @@ import tempfile
 import luigi
 
 logger = logging.getLogger('luigi-interface')
-logger.propagate = 0
 
 class SlurmMixin(object):
     '''Mixin to support running Task on a SLURM cluster '''
@@ -54,7 +53,6 @@ class SlurmMixin(object):
                           '-o',   self.outfile,
                           '-e',   self.errfile,
                       ' '])
-    
 
 class SlurmExecutableTask(luigi.Task, SlurmMixin):
 
@@ -91,7 +89,7 @@ class SlurmExecutableTask(luigi.Task, SlurmMixin):
             # default to the task family
             self.job_name = self.task_family
 
-    def _fetch_task_failures(self, exception):
+    def _fetch_task_failures(self):
         ret = ''
         try:
             with open(self.errfile, 'r') as err:
@@ -119,21 +117,33 @@ class SlurmExecutableTask(luigi.Task, SlurmMixin):
         else:
             self.outfile = os.path.join(self.tmp_dir, 'job.out')
             self.errfile = os.path.join(self.tmp_dir, 'job.err')
-            self.on_failure = self._fetch_task_failures
             
             submit_cmd = self._srun() + self.launcher 
             logger.debug("SLURM: " + submit_cmd )
             
             output = subprocess.check_output(submit_cmd, shell=True, stderr=subprocess.PIPE)
             
-            logger.debug(self._fetch_task_failures(None))
+            logger.debug(self._fetch_task_failures())
             
             if (self.tmp_dir and os.path.exists(self.tmp_dir) and self.rm_tmp):
                 logger.info('Removing temporary directory %s' % self.tmp_dir)
                 subprocess.call(["rm", "-rf", self.tmp_dir])
                 
+    def on_failure(self, exception):
+        slurm_err = self._fetch_task_failures()
+        super_retval = super().on_failure(exception)
+        if super_retval is not None:
+            return slurm_err + "\n" + super_retval
+        else:
+            return slurm_err
+
+    def on_success(self):
+        slurm_err = self._fetch_task_failures()
+        super_retval = super().on_success()
+        if super_retval is not None:
+            return slurm_err + "\n" + super_retval
+        else:
+            return slurm_err
     def work_script(self):
         """Override this an make it return the shell script to run"""
         pass
-
-
