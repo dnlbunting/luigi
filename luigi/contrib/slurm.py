@@ -10,6 +10,8 @@ import tempfile
 
 import luigi
 
+# TODO: Make slurm out logger reference job name
+# 
 logger = logging.getLogger('luigi-interface')
 
 class SlurmMixin(object):
@@ -42,7 +44,7 @@ class SlurmMixin(object):
     
     def _srun(self, launch):
         #return ". lmod-6.1; ml gcc/4.9.1 openmpi/1.10.2; salloc -N 1 -n {n_cpu} --mem {mem} -p {partition} -J {job_name}  mpirun  -np {n_cpu} {launch} > {outfile} 2> {errfile}"
-        return "salloc -N 1 -n {n_cpu} --mem {mem} -p {partition} -J {job_name} srun -n 1 -c {n_cpu} -o {outfile} -e {errfile} {launch}".format(n_cpu=self.n_cpu,
+        return "salloc -N 1 -n {n_cpu} --mem {mem} -p {partition} -J {job_name} /bin/bash -e {launch} > {outfile} 2> {errfile} ".format(n_cpu=self.n_cpu,
          mem=self.mem, partition=self.partition, job_name=self.job_name, launch=launch, outfile=self.outfile, errfile=self.errfile )
 
 
@@ -85,14 +87,14 @@ class SlurmExecutableTask(luigi.Task, SlurmMixin):
         ret = ''
         try:
             with open(self.errfile, 'r') as err:
-                ret +="\nSLURM err:" + err.read() 
+                ret +="\nSLURM err " + self.task_id + ":" + err.read() 
         except FileNotFoundError:
-            ret +="\nSLURM err: None"
+            ret +="\nSLURM err " + self.task_id + ":" + "None"
         try: 
             with open(self.outfile, 'r') as out:
-                ret +="\nSLURM out:" + out.read()
+                ret +="\nSLURM out " + self.task_id + ":" + out.read()
         except FileNotFoundError:
-            ret +="\nSLURM out: None"
+            ret +="\nSLURM out " + self.task_id + ":" + "None"
         
         return ret
         
