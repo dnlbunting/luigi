@@ -44,7 +44,7 @@ class SlurmMixin(object):
     
     def _srun(self, launch):
         #return "salloc -N 1 -n {n_cpu} --mem {mem} -p {partition} -J {job_name} /bin/bash -e {launch} > {outfile} 2> {errfile} "
-        return "salloc -N 1 -c {n_cpu} -n 1 --mem {total_mem} -p {partition} -J {job_name}  srun  -n 1 -c {n_cpu} --mem-per-cpu {mem} {launch} > {outfile} 2> {errfile}".format(n_cpu=self.n_cpu,
+        return "salloc --quiet -N 1 -c {n_cpu} -n 1 --mem {total_mem} -p {partition} -J {job_name}  srun  -n 1 -c {n_cpu} --mem-per-cpu {mem} {launch} > {outfile} 2> {errfile}".format(n_cpu=self.n_cpu,
          mem=self.mem, partition=self.partition, job_name=self.job_name, launch=launch, outfile=self.outfile, errfile=self.errfile, total_mem=int(self.mem*self.n_cpu) )
 
 class SlurmExecutableTask(luigi.Task, SlurmMixin):
