@@ -29,7 +29,7 @@ class SlurmMixin(object):
     run_locally = luigi.BoolParameter(
         significant=False,
         description="run locally instead of on the cluster")
-    rm_tmp = luigi.BoolParameter(default=False, significant=False)
+    rm_tmp = luigi.BoolParameter(default=True, significant=False)
 
     def _init_local(self):
         # Set up temp folder in shared directory (trim to max filename length)
