@@ -1,17 +1,15 @@
-
-import os
+import os,sys, re
 import subprocess
 import time
-import sys
 import logging
 import random
 import traceback
 import tempfile
+from flufl.lock import Lock
 
 import luigi
 
-# TODO: Make slurm out logger reference job name
-# 
+alloc_log = logging.getLogger('alloc_log')
 logger = logging.getLogger('luigi-interface')
 
 class SlurmMixin(object):
@@ -42,10 +40,31 @@ class SlurmMixin(object):
         logger.info("Tmp dir: %s", self.tmp_dir)
         os.makedirs(self.tmp_dir)
     
-    def _srun(self, launch):
-        #return "salloc -N 1 -n {n_cpu} --mem {mem} -p {partition} -J {job_name} /bin/bash -e {launch} > {outfile} 2> {errfile} "
+    def _salloc(self):
+        '''Request a job allocation from the scheduler, blocks until its ready then return the job id '''
+        salloc = "salloc -N 1 -c {n_cpu} -n 1 --mem {total_mem} -p {partition} -J {job_name} --no-shell".format(
+        n_cpu=self.n_cpu, partition=self.partition, total_mem=int(self.mem*self.n_cpu), job_name=self.job_name)
+        
+        comp = subprocess.run(salloc, shell=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE, universal_newlines=True)
+        grant_id = re.compile('salloc: Granted job allocation (\S+)')
+        
+        for line in comp.stderr.split('\n'):
+            if grant_id.match(line) is not None:
+                return (grant_id.match(line).groups()[0])
+                
+        raise Exception("Unable to create job allocation: " + comp.stderr)
+        
+    def _srun(self, launch, alloc):
+        '''Run the task in launch in allocation alloc'''
+        srun = "srun -n 1 --jobid {jobid} -c {n_cpu} --mem-per-cpu {mem}  -o {outfile} -e {errfile} {launch}".format(
+        n_cpu=self.n_cpu, jobid=alloc, mem=self.mem, launch=launch, outfile=self.outfile, errfile=self.errfile )
+        ret = subprocess.call(srun, shell=True)
+        if ret != 0:
+            raise Exception("SlurmExecutableTask failure")
+        
+    def _slaunch(self, launch):
         return "salloc --quiet -N 1 -c {n_cpu} -n 1 --mem {total_mem} -p {partition} -J {job_name}  srun  -n 1 -c {n_cpu} --mem-per-cpu {mem} {launch} > {outfile} 2> {errfile}".format(n_cpu=self.n_cpu,
-         mem=self.mem, partition=self.partition, job_name=self.job_name, launch=launch, outfile=self.outfile, errfile=self.errfile, total_mem=int(self.mem*self.n_cpu) )
+         mem=self.mem, partition=self.partition, job_name=self.job_name, launch=launch, outfile=self.outfile, errfile=self.errfile )
 
 class SlurmExecutableTask(luigi.Task, SlurmMixin):
 
@@ -111,15 +130,23 @@ class SlurmExecutableTask(luigi.Task, SlurmMixin):
             self.outfile = os.path.join(self.tmp_dir, 'job.out')
             self.errfile = os.path.join(self.tmp_dir, 'job.err')
             
-            submit_cmd = self._srun(self.launcher) 
-            logger.debug("SLURM: " + submit_cmd )
-            
-            output = subprocess.check_output(submit_cmd, shell=True, stderr=subprocess.PIPE)
-            
-            if (self.tmp_dir and os.path.exists(self.tmp_dir) and self.rm_tmp):
-                logger.info('Removing temporary directory %s' % self.tmp_dir)
-                subprocess.call(["rm", "-rf", self.tmp_dir])
+            self.alloc = None
+            try:
+                self.alloc = self._salloc()
+                logger.info("SLURM: jobid={0}".format(self.alloc) )
+                alloc_log.info(self.task_id + "\t" + str(self.alloc))
                 
+                self._srun(self.launcher, self.alloc)
+                
+            finally:
+                # Always be sure to free the slurm allocation
+                if self.alloc is not None:
+                    subprocess.run("scancel {0}".format(self.alloc), shell=True, check=False)
+                    
+                if (self.tmp_dir and os.path.exists(self.tmp_dir) and self.rm_tmp):
+                    logger.debug('Removing temporary directory %s' % self.tmp_dir)
+                    subprocess.call(["rm", "-rf", self.tmp_dir])
+            
     def on_failure(self, exception):
         slurm_err = self._fetch_task_failures()
         logger.info(slurm_err)
