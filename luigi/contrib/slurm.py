@@ -142,13 +142,14 @@ class SlurmExecutableTask(luigi.Task, SlurmMixin):
                 # Always be sure to free the slurm allocation
                 if self.alloc is not None:
                     subprocess.run("scancel {0}".format(self.alloc), shell=True, check=False)
-                    
-                if (self.tmp_dir and os.path.exists(self.tmp_dir) and self.rm_tmp):
-                    logger.debug('Removing temporary directory %s' % self.tmp_dir)
-                    subprocess.call(["rm", "-rf", self.tmp_dir])
+    def clear_tmp(self):                
+        if (self.tmp_dir and os.path.exists(self.tmp_dir) and self.rm_tmp):
+            logger.debug('Removing temporary directory %s' % self.tmp_dir)
+            subprocess.call(["rm", "-rf", self.tmp_dir])
             
     def on_failure(self, exception):
         slurm_err = self._fetch_task_failures()
+        self.clear_tmp()
         logger.info(slurm_err)
         super_retval = super().on_failure(exception)
         if super_retval is not None:
@@ -158,6 +159,7 @@ class SlurmExecutableTask(luigi.Task, SlurmMixin):
 
     def on_success(self):
         slurm_err = self._fetch_task_failures()
+        self.clear_tmp()
         logger.info(slurm_err)
         super_retval = super().on_success()
         if super_retval is not None:
