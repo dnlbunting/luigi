@@ -45,7 +45,7 @@ class SlurmMixin(object):
         salloc = "salloc -N 1 -c {n_cpu} -n 1 --mem {total_mem} -p {partition} -J {job_name} --no-shell".format(
         n_cpu=self.n_cpu, partition=self.partition, total_mem=int(self.mem*self.n_cpu), job_name=self.job_name)
         
-        comp = subprocess.run(salloc, shell=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE, universal_newlines=True)
+        comp = subprocess.run(salloc, shell=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE, universal_newlines=True, check=True)
         grant_id = re.compile('salloc: Granted job allocation (\S+)')
         
         for line in comp.stderr.split('\n'):
@@ -56,12 +56,10 @@ class SlurmMixin(object):
         
     def _srun(self, launch, alloc):
         '''Run the task in launch in allocation alloc'''
-        srun = "srun -n 1 --jobid {jobid} -c {n_cpu} --mem-per-cpu {mem}  -o {outfile} -e {errfile} {launch}".format(
+        srun = "srun -n 1 --kill-on-bad-exit  --quit-on-interrupt --jobid {jobid} -c {n_cpu} --mem-per-cpu {mem}  -o {outfile} -e {errfile} {launch}".format(
         n_cpu=self.n_cpu, jobid=alloc, mem=self.mem, launch=launch, outfile=self.outfile, errfile=self.errfile )
-        ret = subprocess.call(srun, shell=True)
-        if ret != 0:
-            raise Exception("SlurmExecutableTask failure")
-        
+        ret = subprocess.run(srun, shell=True, check=True)
+                
     def _slaunch(self, launch):
         return "salloc --quiet -N 1 -c {n_cpu} -n 1 --mem {total_mem} -p {partition} -J {job_name}  srun  -n 1 -c {n_cpu} --mem-per-cpu {mem} {launch} > {outfile} 2> {errfile}".format(n_cpu=self.n_cpu,
          mem=self.mem, partition=self.partition, job_name=self.job_name, launch=launch, outfile=self.outfile, errfile=self.errfile )
