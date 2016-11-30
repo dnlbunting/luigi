@@ -64,12 +64,20 @@ class ScatterGather():
         
 
     def metaProgScatter(self, scattertask):
-        Scatter = type(scattertask.__name__, (scattertask,), {})
+        meta_self = self
+                
+        @inherits(self.workTask)
+        class Scatter(scattertask):
+
+            def requires(self):
+                return meta_self.workTask.requires(self)
+            def output(self):
+                return [indextarget(meta_self.workTask.input(self), i) for i in range(meta_self.N)]
+            def to_str_params(self,only_significant=False):
+                sup = super().to_str_params(only_significant)
+                extras = {'input':self.input().path, 'N':str(meta_self.N)}
+                return dict(list(sup.items()) + list(extras.items()))
         
-        Scatter = inherits(self.workTask)(Scatter)
-        Scatter.requires = self.workTask.requires
-        Scatter.output = lambda cls_self : [indextarget(self.workTask.input(cls_self), i) for i in range(self.N)]
-        Scatter.__hash__ = lambda cls_self : hash(cls_self.task_id+str(cls_self.input())+str(cls_self.output()))
         return Scatter
         
     def metaProgWork(self, worktask):
@@ -82,14 +90,20 @@ class ScatterGather():
         return Work
 
     def metaProgGather(self, gathertask):
-        Gather = type(gathertask.__name__, (gathertask,), {})
-        
-        Gather = inherits(self.workTask)(Gather)
-        Gather.SG_index = None
-        Gather.requires = lambda cls_self : [cls_self.clone(self.Work, SG_index=i) for i  in range(self.N)]
-        Gather.output = self.workTask.output
-        Gather.__hash__ = lambda cls_self : hash(cls_self.task_id+str(cls_self.input())+str(cls_self.output())) y
-        
+        meta_self = self
+                
+        @inherits(self.workTask)
+        class Gather(gathertask):
+            SG_index = None
+            def requires(self):
+                return  [self.clone(meta_self.Work, SG_index=i) for i  in range(meta_self.N)]
+            def output(self):
+                return meta_self.workTask.output(self)
+            def to_str_params(self,only_significant=False):
+                sup = super().to_str_params(only_significant)
+                extras = {'N':str(meta_self.N), 'output':self.output().path}
+                return dict(list(sup.items()) + list(extras.items()))
+                
         return Gather
         
     def __call__(self, workTask):
