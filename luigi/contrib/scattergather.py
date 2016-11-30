@@ -4,21 +4,21 @@ from luigi import Target, LocalTarget
 from luigi.util import task_wraps, inherits, requires
 from luigi.task import getpaths
 import six,os,math
-
+import copy
 
 def indextarget(struct, idx):
     """
     Maps all Targets in a structured output to an indexed temporary file
     """
     if isinstance(struct, Target):
-        base, *ext = os.path.split(struct.path)[1].rsplit('.', maxsplit=1)
+        base, *ext = struct.path.split('.', maxsplit=1)
         if len(ext) > 0:
             return LocalTarget(base + "_" + str(idx) + "." + ext[0])
         else :
             return LocalTarget(base + "_" + str(idx))
     else:
         raise NotImplemented()
-        
+
 class ScatterGather():
     '''Decorator to transparently add Scatter-Gather parallelism to a Luigi task
     :param scatterTask must inherit and implement a run() method which maps
@@ -64,27 +64,31 @@ class ScatterGather():
         
 
     def metaProgScatter(self, scattertask):
-        Scatter = type(scattertask.__name__, scattertask.__bases__, dict(scattertask.__dict__))
+        Scatter = type(scattertask.__name__, (scattertask,), {})
+        
         Scatter = inherits(self.workTask)(Scatter)
         Scatter.requires = self.workTask.requires
-        Scatter.output = lambda cls_self : [indextarget(self.workTask.output(cls_self), i) for i in range(self.N)]
-        
+        Scatter.output = lambda cls_self : [indextarget(self.workTask.input(cls_self), i) for i in range(self.N)]
+        Scatter.__hash__ = lambda cls_self : hash(cls_self.task_id+str(cls_self.input())+str(cls_self.output()))
         return Scatter
         
     def metaProgWork(self, worktask):
-        Work = type(worktask.__name__, worktask.__bases__, dict(worktask.__dict__))
+        Work = type(worktask.__name__, (worktask,), {})
+        
         Work.SG_index = luigi.IntParameter()
-        Work.requires = lambda cls_self : self.Scatter()
+        Work.requires = lambda cls_self : cls_self.clone(self.Scatter)
         Work.input = lambda cls_self : self.workTask.input(cls_self)[cls_self.SG_index]
         Work.output = lambda cls_self : indextarget(self.workTask.output(cls_self), cls_self.SG_index)
         return Work
 
     def metaProgGather(self, gathertask):
-        Gather = type(gathertask.__name__, gathertask.__bases__, dict(gathertask.__dict__))
+        Gather = type(gathertask.__name__, (gathertask,), {})
+        
         Gather = inherits(self.workTask)(Gather)
         Gather.SG_index = None
         Gather.requires = lambda cls_self : [cls_self.clone(self.Work, SG_index=i) for i  in range(self.N)]
         Gather.output = self.workTask.output
+        Gather.__hash__ = lambda cls_self : hash(cls_self.task_id+str(cls_self.input())+str(cls_self.output())) y
         
         return Gather
         
