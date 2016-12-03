@@ -101,17 +101,23 @@ class SlurmExecutableTask(luigi.Task, SlurmMixin):
 
     def _fetch_task_failures(self):
         ret = ''
-        try:
-            with open(self.errfile, 'r') as err:
-                ret +="\nSLURM err " + self.task_id + ": " + err.read().replace("\n", "\nSLURM err " + self.task_id + ": ") 
-        except FileNotFoundError:
-            ret +="\nSLURM err " + self.task_id + ": " + "None"
-        try: 
-            with open(self.outfile, 'r') as out:
-                ret +="\nSLURM out " + self.task_id + ": " + out.read().replace("\n", "\nSLURM out " + self.task_id + ": ") 
-        except FileNotFoundError:
-            ret +="\nSLURM out " + self.task_id + ": " + "None"
-        
+        if self.run_locally:
+            if not self.completedprocess.stdout is None:
+                ret+= self.completedprocess.stdout.replace("\n", "\nstdout " + self.task_id + ": ") 
+            if not self.completedprocess.stderr is None:
+                ret+= self.completedprocess.stderr.replace("\n", "\nstdout " + self.task_id + ": ")
+        else:
+            try:
+                with open(self.errfile, 'r') as err:
+                    ret +="\nSLURM err " + self.task_id + ": " + err.read().replace("\n", "\nSLURM err " + self.task_id + ": ") 
+            except FileNotFoundError:
+                ret +="\nSLURM err " + self.task_id + ": " + "None"
+            try: 
+                with open(self.outfile, 'r') as out:
+                    ret +="\nSLURM out " + self.task_id + ": " + out.read().replace("\n", "\nSLURM out " + self.task_id + ": ") 
+            except FileNotFoundError:
+                ret +="\nSLURM out " + self.task_id + ": " + "None"
+            
         return ret
         
     def run(self):
@@ -122,8 +128,9 @@ class SlurmExecutableTask(luigi.Task, SlurmMixin):
             l.write(self.work_script())
             
         if self.run_locally:
-            output = subprocess.check_output(self.launcher , shell=True, stderr=subprocess.PIPE)
-        
+            self.completedprocess = subprocess.run(self.launcher , shell=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE, universal_newlines=True)
+            self.completedprocess.check_returncode()
+            
         else:
             self.outfile = os.path.join(self.tmp_dir, 'job.out')
             self.errfile = os.path.join(self.tmp_dir, 'job.err')
@@ -146,24 +153,25 @@ class SlurmExecutableTask(luigi.Task, SlurmMixin):
             subprocess.call(["rm", "-rf", self.tmp_dir])
             
     def on_failure(self, exception):
-        slurm_err = self._fetch_task_failures()
+        err = self._fetch_task_failures()
         self.clear_tmp()
-        logger.info(slurm_err)
+        logger.info(err)
         super_retval = super().on_failure(exception)
         if super_retval is not None:
-            return slurm_err + "\n" + super_retval
+            return err + "\n" + super_retval
         else:
-            return slurm_err
+            return err
 
     def on_success(self):
-        slurm_err = self._fetch_task_failures()
+        err = self._fetch_task_failures()
         self.clear_tmp()
-        logger.info(slurm_err)
+        logger.info(err)
         super_retval = super().on_success()
         if super_retval is not None:
-            return slurm_err + "\n" + super_retval
+            return err + "\n" + super_retval
         else:
-            return slurm_err
+            return err
+
     def work_script(self):
         """Override this an make it return the shell script to run"""
         pass
