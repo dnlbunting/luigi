@@ -110,12 +110,12 @@ class SlurmExecutableTask(luigi.Task, SlurmMixin):
             try:
                 with open(self.errfile, 'r') as err:
                     ret +="\nSLURM err " + self.task_id + ": " + err.read().replace("\n", "\nSLURM err " + self.task_id + ": ") 
-            except FileNotFoundError:
+            except (FileNotFoundError,AttributeError):
                 ret +="\nSLURM err " + self.task_id + ": " + "None"
             try: 
                 with open(self.outfile, 'r') as out:
                     ret +="\nSLURM out " + self.task_id + ": " + out.read().replace("\n", "\nSLURM out " + self.task_id + ": ") 
-            except FileNotFoundError:
+            except (FileNotFoundError,AttributeError):
                 ret +="\nSLURM out " + self.task_id + ": " + "None"
             
         return ret

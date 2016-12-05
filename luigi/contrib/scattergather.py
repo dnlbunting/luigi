@@ -16,6 +16,8 @@ def indextarget(struct, idx):
             return LocalTarget(base + "_" + str(idx) + "." + ext[0])
         else :
             return LocalTarget(base + "_" + str(idx))
+#    elif isinstance(struct, list):
+#        indextarget(struct[0], idx)
     else:
         raise NotImplemented()
 
@@ -70,7 +72,8 @@ class ScatterGather():
         class Scatter(scattertask):
 
             def requires(self):
-                return meta_self.workTask.requires(self)
+                wt_req = meta_self.workTask.requires(self)
+                return wt_req[0] if isinstance(wt_req, list) else wt_req
             def output(self):
                 return [indextarget(meta_self.workTask.input(self), i) for i in range(meta_self.N)]
             def to_str_params(self,only_significant=False):
@@ -81,12 +84,19 @@ class ScatterGather():
         return Scatter
         
     def metaProgWork(self, worktask):
-        Work = type(worktask.__name__, (worktask,), {})
-        
-        Work.SG_index = luigi.IntParameter()
-        Work.requires = lambda cls_self : cls_self.clone(self.Scatter)
-        Work.input = lambda cls_self : self.workTask.input(cls_self)[cls_self.SG_index]
-        Work.output = lambda cls_self : indextarget(self.workTask.output(cls_self), cls_self.SG_index)
+        meta_self = self
+        class Work(worktask):
+            SG_index = luigi.IntParameter()
+            
+            def requires(self):
+                s = self.clone(meta_self.Scatter)
+                return [s]+super().requires(self)[1:] if isinstance(super().requires(self), list) else [s]
+
+            def input(self):
+                self.requires()[0][self.SG_index]
+            
+            def output(self):
+                return indextarget(super().output(), self.SG_index)
         return Work
 
     def metaProgGather(self, gathertask):
