@@ -112,7 +112,7 @@ class RemoteScheduler(object):
     def _wait(self):
         time.sleep(30)
 
-    def _fetch(self, url_suffix, body, log_exceptions=True, attempts=20):
+    def _fetch(self, url_suffix, body, log_exceptions=True, attempts=3):
         full_url = _urljoin(self._url, url_suffix)
         last_exception = None
         attempt = 0
