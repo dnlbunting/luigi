@@ -62,6 +62,9 @@ class RPCHandler(tornado.web.RequestHandler):
 
     def initialize(self, scheduler):
         self._scheduler = scheduler
+        self.set_header("Access-Control-Allow-Headers", "Accept, Authorization, Content-Type, Origin")
+        self.set_header("Access-Control-Allow-Methods", "GET, OPTIONS")
+        self.set_header("Access-Control-Allow-Origin", "*")
 
     def get(self, method):
         if method not in RPC_METHODS:
@@ -190,6 +193,7 @@ class RootPathHandler(BaseTaskHistoryHandler):
 def app(scheduler):
     settings = {"static_path": os.path.join(os.path.dirname(__file__), "static"),
                 "unescape": tornado.escape.xhtml_unescape,
+                "compress_response": True,
                 }
     handlers = [
         (r'/api/(.*)', RPCHandler, {"scheduler": scheduler}),
