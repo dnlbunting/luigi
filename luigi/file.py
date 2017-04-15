@@ -18,9 +18,19 @@
 luigi.file has moved to :py:mod:`luigi.local_target`
 """
 # Delete this file any time after 7 Feb 2017
-
+import tempfile
 import warnings
-
 from luigi.local_target import *  # NOQA
 warnings.warn("luigi.file module has been moved to luigi.local_target",
               DeprecationWarning)
+
+class TemporaryFile(LocalTarget):
+    '''Anonymous temporary file that is accessible from within a single Task. After the Task ends the file is deleted.'''
+    def __init__(self):
+        path = os.path.join(tempfile.gettempdir(), 'luigi-tmp-%09d' % random.randint(0, 999999999))
+        self.path = path
+        super().__init__(path)
+
+    def __del__(self):
+        if self.exists():
+            self.remove()
