@@ -94,6 +94,8 @@ def _get_retry_policy_dict(task):
 class TaskException(Exception):
     pass
 
+class IncompleteException(Exception):
+    pass
 
 GetWorkResponse = collections.namedtuple('GetWorkResponse', (
     'task_id',
@@ -178,19 +180,14 @@ class TaskProcess(multiprocessing.Process):
             t0 = time.time()
             status = None
 
-            if _is_external(self.task):
-                # External task
-                # TODO(erikbern): We should check for task completeness after non-external tasks too!
-                # This will resolve #814 and make things a lot more consistent
-                if self.task.complete():
-                    status = DONE
-                else:
-                    status = FAILED
-                    expl = 'Task is an external data dependency ' \
-                        'and data does not exist (yet?).'
+            new_deps = self._run_get_new_deps()
+            if new_deps:
+                status = PENDING
+            elif self.task.complete():
+                status = DONE
             else:
-                new_deps = self._run_get_new_deps()
-                status = DONE if not new_deps else PENDING
+                status = FAILED
+                raise IncompleteException("Task process ended but complete() was not true, were all promised outputs created?")
 
             if new_deps:
                 logger.info(
