@@ -137,6 +137,7 @@ class LocalTarget(FileSystemTarget):
         super(LocalTarget, self).__init__(path)
         self.format = format
         self.is_tmp = is_tmp
+        self.makedirs()
 
     def makedirs(self):
         """
