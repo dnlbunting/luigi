@@ -377,10 +377,7 @@ class HiveTableTarget(luigi.Target):
     def __init__(self, table, database='default', client=None):
         self.database = database
         self.table = table
-        self.hive_cmd = load_hive_cmd()
-        if client is None:
-            client = get_default_client()
-        self.client = client
+        self.client = client or get_default_client()
 
     def exists(self):
         logger.debug("Checking if Hive table '%s.%s' exists", self.database, self.table)
@@ -409,9 +406,7 @@ class HivePartitionTarget(luigi.Target):
         self.database = database
         self.table = table
         self.partition = partition
-        if client is None:
-            client = get_default_client()
-        self.client = client
+        self.client = client or get_default_client()
 
         self.fail_missing_table = fail_missing_table
 
@@ -451,11 +446,10 @@ class ExternalHiveTask(luigi.ExternalTask):
 
     database = luigi.Parameter(default='default')
     table = luigi.Parameter()
-    # since this is an external task and will never be initialized from the CLI, partition can be any python object, in this case a dictionary
-    partition = luigi.Parameter(default=None, description='Python dictionary specifying the target partition e.g. {"date": "2013-01-25"}')
+    partition = luigi.DictParameter(default={}, description='Python dictionary specifying the target partition e.g. {"date": "2013-01-25"}')
 
     def output(self):
-        if self.partition is not None:
+        if len(self.partition) != 0:
             assert self.partition, "partition required"
             return HivePartitionTarget(table=self.table,
                                        partition=self.partition,

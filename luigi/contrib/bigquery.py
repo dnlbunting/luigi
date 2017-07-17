@@ -19,13 +19,11 @@ import collections
 import logging
 import luigi.target
 import time
+from luigi.contrib import gcp
 
 logger = logging.getLogger('luigi-interface')
 
 try:
-    import httplib2
-    import oauth2client
-
     from googleapiclient import discovery
     from googleapiclient import http
 except ImportError:
@@ -107,15 +105,12 @@ class BigQueryClient(object):
     """
 
     def __init__(self, oauth_credentials=None, descriptor='', http_=None):
-        http_ = http_ or httplib2.Http()
-
-        if not oauth_credentials:
-            oauth_credentials = oauth2client.client.GoogleCredentials.get_application_default()
+        authenticate_kwargs = gcp.get_authenticate_kwargs(oauth_credentials, http_)
 
         if descriptor:
-            self.client = discovery.build_from_document(descriptor, credentials=oauth_credentials, http=http_)
+            self.client = discovery.build_from_document(descriptor, **authenticate_kwargs)
         else:
-            self.client = discovery.build('bigquery', 'v2', credentials=oauth_credentials, http=http_)
+            self.client = discovery.build('bigquery', 'v2', **authenticate_kwargs)
 
     def dataset_exists(self, dataset):
         """Returns whether the given dataset exists.
@@ -353,7 +348,6 @@ class BigQueryClient(object):
         """
 
         job = {
-            "projectId": dest_table.project_id,
             "configuration": {
                 "copy": {
                     "sourceTable": {
@@ -518,7 +512,6 @@ class BigQueryLoadTask(MixinBigQueryBulkComplete, luigi.Task):
         assert all(x.startswith('gs://') for x in source_uris)
 
         job = {
-            'projectId': output.table.project_id,
             'configuration': {
                 'load': {
                     'destinationTable': {
@@ -604,7 +597,6 @@ class BigQueryRunQueryTask(MixinBigQueryBulkComplete, luigi.Task):
         logger.info('Query SQL: %s', query)
 
         job = {
-            'projectId': output.table.project_id,
             'configuration': {
                 'query': {
                     'query': query,
