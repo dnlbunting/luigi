@@ -188,7 +188,6 @@ class TaskProcess(multiprocessing.Process):
             else:
                 status = FAILED
                 raise IncompleteException("Task process ended but complete() was not true, were all promised outputs created?")
-                
             if new_deps:
                 logger.info(
                     '[pid %s] Worker %s new requirements      %s',
